@@ -3,8 +3,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
 import { User } from "../models/user.model.js";
 
-// the goal is to verify the request from the user to validate access
-
 const verifyJWT = asyncHandler(async (req, _, next) => {
   try {
     const token =

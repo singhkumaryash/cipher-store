@@ -1,7 +1,17 @@
 import express from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import morgan from "morgan";
+
 const app = express();
+
+// header security middleware
+app.use(helmet());
+
+// log middleware
+const logFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
+app.use(morgan(logFormat));
 
 // cors middleware
 app.use(
@@ -26,5 +36,21 @@ import platformRoute from "./routes/platform.routes.js";
 app.use("/api/v1/users", userRoute);
 app.use("/api/v1/credentials", credentialRoute);
 app.use("/api/v1/platforms", platformRoute);
+
+app.use((err, req, res, _) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || "Internal Server Error";
+
+  console.error(err);
+
+  return res.status(statusCode).json({
+    success: false,
+    statusCode,
+    message,
+    errors: err.errors || [],
+
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+  });
+});
 
 export default app;

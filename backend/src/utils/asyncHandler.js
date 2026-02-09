@@ -8,5 +8,3 @@ const asyncHandler = (requestHandler) => {
 
 export { asyncHandler };
 
-// We need asyncHandler because Express cannot catch errors inside async/await
-// controllers, so this wrapper forwards errors safely to the error middleware.
