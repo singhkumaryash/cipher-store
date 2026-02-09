@@ -10,11 +10,13 @@ import {
   updateUser,
 } from "../controllers/user.controller.js";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { limiter } from "../middlewares/rateLimiter.middleware.js";
+
 const router = Router();
 
-router.route("/register").post(registerUser);
+router.route("/register").post(limiter, registerUser);
 
-router.route("/login").post(loginUser);
+router.route("/login").post(limiter, loginUser);
 
 router.route("/logout").post(verifyJWT, logoutUser);
 
