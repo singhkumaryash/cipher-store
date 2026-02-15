@@ -45,18 +45,14 @@ const credentialSchema = new Schema(
   },
 );
 
-credentialSchema.pre("save", function (next) {
+credentialSchema.pre("save", async function () {
   if (!this.email && !this.username) {
-    return next(new ApiError(400, "Either email or username is required!"));
+    throw new ApiError(400, "Either email or username is required!");
   }
 
-  if (!this.encryptedPassword || !this.iv) {
-    return next(
-      new ApiError(400, "Password is required! (Encryption failed!)"),
-    );
+  if (!this.iv || !this.encryptedPassword) {
+    throw new ApiError(400, "Password is required!");
   }
-
-  next();
 });
 
 credentialSchema.virtual("password").set(function (plainTextPassword) {
