@@ -6,6 +6,8 @@ import morgan from "morgan";
 
 const app = express();
 
+app.set("trust proxy", 1);
+
 // header security middleware
 app.use(helmet());
 
