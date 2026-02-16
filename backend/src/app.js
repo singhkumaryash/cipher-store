@@ -15,10 +15,12 @@ app.use(helmet());
 const logFormat = process.env.NODE_ENV === "production" ? "combined" : "dev";
 app.use(morgan(logFormat));
 
-// cors middleware
+// CORS: set CORS_ORIGIN to your frontend URL (e.g. https://your-app.vercel.app), or comma-separated for multiple
+const corsOrigin = process.env.CORS_ORIGIN;
+const originList = corsOrigin?.split(",").map((o) => o.trim()).filter(Boolean);
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN,
+    origin: originList?.length > 1 ? originList : originList?.[0] ?? corsOrigin,
     credentials: true,
   }),
 );

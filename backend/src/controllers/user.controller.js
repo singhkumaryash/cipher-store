@@ -5,6 +5,13 @@ import { ApiError } from "../utils/ApiError.js";
 import jwt from "jsonwebtoken";
 import { isValidObjectId } from "mongoose";
 
+// Cookie options: sameSite 'none' needed for cross-origin (frontend on different domain)
+const getCookieOptions = () => ({
+  httpOnly: true,
+  secure: true,
+  ...(process.env.NODE_ENV === "production" && { sameSite: "none" }),
+});
+
 const generateAccessAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -16,7 +23,7 @@ const generateAccessAndRefreshToken = async (userId) => {
 
     return { accessToken, refreshToken };
   } catch (error) {
-    console.error("Tpken generation failed:", error);
+    console.error("Token generation failed:", error);
     throw new ApiError(500, "Something went wrong while generating tokens");
   }
 };
@@ -44,12 +51,7 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
       throw new ApiError(401, "Refresh token is expired or used");
     }
 
-    const options = {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-    };
-
+    const options = getCookieOptions();
     const { accessToken, refreshToken: newRefreshToken } =
       await generateAccessAndRefreshToken(user._id);
 
@@ -108,9 +110,20 @@ const registerUser = asyncHandler(async (req, res) => {
     throw new ApiError(500, "Something went wrong while registration!");
   }
 
+  // Auto-login after register: return tokens so frontend works when deployed (cross-origin)
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
+  const options = getCookieOptions();
   return res
     .status(201)
-    .json(new ApiResponse(200, createdUser, "User registered successfully!"));
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+      new ApiResponse(200, {
+        ...createdUser.toObject?.() ?? createdUser,
+        accessToken,
+        refreshToken,
+      }, "User registered successfully!"),
+    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -142,17 +155,18 @@ const loginUser = asyncHandler(async (req, res) => {
     "-password -refreshToken",
   );
 
-  const options = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-  };
-
+  const options = getCookieOptions();
   return res
     .status(200)
     .cookie("accessToken", accessToken, options)
     .cookie("refreshToken", refreshToken, options)
-    .json(new ApiResponse(200, loggedInUser, "user logged in successfully"));
+    .json(
+      new ApiResponse(200, {
+        ...loggedInUser.toObject?.() ?? loggedInUser,
+        accessToken,
+        refreshToken,
+      }, "user logged in successfully"),
+    );
 });
 
 const logoutUser = asyncHandler(async (req, res) => {
@@ -162,12 +176,7 @@ const logoutUser = asyncHandler(async (req, res) => {
     },
   });
 
-  const options = {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-  };
-
+  const options = getCookieOptions();
   return res
     .status(200)
     .clearCookie("accessToken", options)
