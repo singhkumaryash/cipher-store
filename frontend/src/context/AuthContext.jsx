@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import * as authApi from "../api/auth.js";
+import { setStoredTokens, clearStoredTokens } from "../api/client.js";
 
 const USER_KEY = "cipher_store_user";
 
@@ -12,6 +13,15 @@ function readStoredUser() {
   }
 }
 
+function normalizeUserPayload(payload) {
+  if (!payload) return null;
+  const { accessToken, refreshToken, ...user } = payload;
+  if (accessToken || refreshToken) {
+    setStoredTokens(accessToken, refreshToken);
+  }
+  return Object.keys(user).length ? user : null;
+}
+
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
@@ -19,12 +29,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
 
   const setUserFromData = useCallback((data) => {
-    if (data?.data) {
-      setUser(data.data);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.data));
+    const payload = data?.data;
+    if (payload) {
+      const userOnly = normalizeUserPayload(payload);
+      setUser(userOnly);
+      localStorage.setItem(USER_KEY, JSON.stringify(userOnly));
     } else {
       setUser(null);
       localStorage.removeItem(USER_KEY);
+      clearStoredTokens();
     }
   }, []);
 
@@ -50,6 +63,7 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       localStorage.removeItem(USER_KEY);
+      clearStoredTokens();
     }
   }, []);
 
@@ -57,6 +71,7 @@ export function AuthProvider({ children }) {
     function onLogout() {
       setUser(null);
       localStorage.removeItem(USER_KEY);
+      clearStoredTokens();
     }
     window.addEventListener("auth:logout", onLogout);
     return () => window.removeEventListener("auth:logout", onLogout);

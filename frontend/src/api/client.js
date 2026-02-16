@@ -2,10 +2,38 @@ import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "/api";
 
+const TOKEN_ACCESS = "cipher_store_access_token";
+const TOKEN_REFRESH = "cipher_store_refresh_token";
+
+export function getStoredAccessToken() {
+  return localStorage.getItem(TOKEN_ACCESS);
+}
+
+export function getStoredRefreshToken() {
+  return localStorage.getItem(TOKEN_REFRESH);
+}
+
+export function setStoredTokens(accessToken, refreshToken) {
+  if (accessToken) localStorage.setItem(TOKEN_ACCESS, accessToken);
+  if (refreshToken) localStorage.setItem(TOKEN_REFRESH, refreshToken);
+}
+
+export function clearStoredTokens() {
+  localStorage.removeItem(TOKEN_ACCESS);
+  localStorage.removeItem(TOKEN_REFRESH);
+}
+
 export const api = axios.create({
   baseURL: API_BASE,
   withCredentials: true,
   headers: { "Content-Type": "application/json" },
+});
+
+// Send stored access token so auth works when deployed (cross-origin cookies may not be sent)
+api.interceptors.request.use((config) => {
+  const token = getStoredAccessToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
 });
 
 api.interceptors.response.use(
@@ -13,28 +41,30 @@ api.interceptors.response.use(
   async (err) => {
     const original = err.config;
 
-    // 1. Check if the error is 401
     if (err.response?.status === 401) {
-      
-      // 🛑 STOP THE LOOP: If the failed request was the refresh-token itself, 
-      // or if we've already retried once, bail out immediately.
-      if (original.url.includes("/refresh-token") || original._retry) {
+      if (original.url?.includes("/refresh-token") || original._retry) {
+        clearStoredTokens();
         window.dispatchEvent(new CustomEvent("auth:logout"));
-        return Promise.reject(err); 
+        return Promise.reject(err);
       }
 
       original._retry = true;
+      const refreshToken = getStoredRefreshToken();
 
       try {
-        // 2. Attempt to refresh tokens
-        await api.post("/v1/users/refresh-token");
-        
-        // 3. Retry the original request with the new cookie
+        // Prefer sending refresh token in body for cross-origin (cookies may not be sent)
+        const refreshRes = await api.post("/v1/users/refresh-token", {
+          refreshToken: refreshToken || undefined,
+        });
+        const payload = refreshRes.data?.data;
+        if (payload?.accessToken) {
+          setStoredTokens(payload.accessToken, payload.refreshToken);
+        }
         return api(original);
       } catch (refreshErr) {
-        // 4. Refresh failed (expired/no cookie) - Force Logout
+        clearStoredTokens();
         window.dispatchEvent(new CustomEvent("auth:logout"));
-        return Promise.reject(refreshErr); // Must reject to stop the chain
+        return Promise.reject(refreshErr);
       }
     }
 
